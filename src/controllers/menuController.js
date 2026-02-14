@@ -50,7 +50,6 @@ exports.updateItem = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
-
 exports.deleteItem = async (req, res) => {
     try {
         const { id } = req.params;
