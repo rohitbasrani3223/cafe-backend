@@ -8,4 +8,8 @@ router.get('/my', authMiddleware, orderController.getMyOrders);
 router.get('/', authMiddleware, orderController.getAllOrders);
 router.delete('/:id', authMiddleware, orderController.deleteOrder);
 
+// Reports & Stats
+router.get('/daily', authMiddleware, orderController.getDailyStats);
+router.get('/monthly', authMiddleware, orderController.getMonthlyStats);
+
 module.exports = router;

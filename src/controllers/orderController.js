@@ -14,38 +14,44 @@ exports.createOrder = async (req, res) => {
         await client.query('BEGIN');
 
         let totalAmount = 0;
+        let totalProfit = 0;
+        const orderItemsData = [];
 
         for (let item of items) {
-            // Using 'menu_items' table as established previously
-            const menuItem = await client.query(
-                'SELECT price FROM menu_items WHERE id = $1',
+            const menuItemResult = await client.query(
+                'SELECT price, cost_price FROM menu_items WHERE id = $1',
                 [item.menu_id]
             );
 
-            if (menuItem.rows.length === 0) {
+            if (menuItemResult.rows.length === 0) {
                 throw new Error(`Menu item with id ${item.menu_id} not found`);
             }
 
-            const price = menuItem.rows[0].price;
-            totalAmount += price * item.quantity;
+            const { price, cost_price } = menuItemResult.rows[0];
+            const cost = parseFloat(cost_price) || 0;
+            const sellingPrice = parseFloat(price);
+
+            totalAmount += sellingPrice * item.quantity;
+            totalProfit += (sellingPrice - cost) * item.quantity;
+
+            orderItemsData.push({
+                menu_id: item.menu_id,
+                quantity: item.quantity,
+                price: sellingPrice
+            });
         }
 
         const orderResult = await client.query(
-            'INSERT INTO orders (user_id, total_amount, payment_method) VALUES ($1, $2, $3) RETURNING *',
-            [user_id, totalAmount, payment_method]
+            'INSERT INTO orders (user_id, total_amount, profit, payment_method) VALUES ($1, $2, $3, $4) RETURNING *',
+            [user_id, totalAmount, totalProfit, payment_method]
         );
 
         const order_id = orderResult.rows[0].id;
 
-        for (let item of items) {
-            const menuItem = await client.query(
-                'SELECT price FROM menu_items WHERE id = $1',
-                [item.menu_id]
-            );
-
+        for (let data of orderItemsData) {
             await client.query(
                 'INSERT INTO order_items (order_id, menu_id, quantity, price) VALUES ($1, $2, $3, $4)',
-                [order_id, item.menu_id, item.quantity, menuItem.rows[0].price]
+                [order_id, data.menu_id, data.quantity, data.price]
             );
         }
 
@@ -54,7 +60,8 @@ exports.createOrder = async (req, res) => {
         res.status(201).json({
             message: "Order created successfully 🔥",
             order_id,
-            totalAmount
+            totalAmount,
+            totalProfit
         });
 
     } catch (err) {
@@ -108,6 +115,82 @@ exports.deleteOrder = async (req, res) => {
         await pool.query('DELETE FROM orders WHERE id = $1', [id]);
 
         res.json({ message: "Order deleted successfully 🔥" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.getDailyStats = async (req, res) => {
+    try {
+        // Sales & Profit for Today
+        const salesResult = await pool.query(`
+            SELECT 
+                COALESCE(SUM(total_amount), 0) as total_revenue,
+                COALESCE(SUM(profit), 0) as total_profit,
+                COUNT(*) as order_count
+            FROM orders
+            WHERE DATE(created_at) = CURRENT_DATE
+        `);
+
+        // Expenses for Today
+        const expenseResult = await pool.query(`
+            SELECT COALESCE(SUM(amount), 0) as total_expenses
+            FROM expenses
+            WHERE DATE(created_at) = CURRENT_DATE
+        `);
+
+        const revenue = parseFloat(salesResult.rows[0].total_revenue);
+        const profit = parseFloat(salesResult.rows[0].total_profit);
+        const expenses = parseFloat(expenseResult.rows[0].total_expenses);
+        const netProfit = profit - expenses; // Real Net Profit formula
+
+        res.json({
+            date: new Date(),
+            revenue,
+            profit,
+            expenses,
+            netProfit,
+            orderCount: parseInt(salesResult.rows[0].order_count)
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.getMonthlyStats = async (req, res) => {
+    try {
+        // Sales & Profit for This Month
+        const salesResult = await pool.query(`
+            SELECT 
+                COALESCE(SUM(total_amount), 0) as total_revenue,
+                COALESCE(SUM(profit), 0) as total_profit,
+                COUNT(*) as order_count
+            FROM orders
+            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+        `);
+
+        // Expenses for This Month
+        const expenseResult = await pool.query(`
+            SELECT COALESCE(SUM(amount), 0) as total_expenses
+            FROM expenses
+            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+        `);
+
+        const revenue = parseFloat(salesResult.rows[0].total_revenue);
+        const profit = parseFloat(salesResult.rows[0].total_profit);
+        const expenses = parseFloat(expenseResult.rows[0].total_expenses);
+        const netProfit = profit - expenses;
+
+        res.json({
+            month: new Date().toLocaleString('default', { month: 'long' }),
+            revenue,
+            profit,
+            expenses,
+            netProfit,
+            orderCount: parseInt(salesResult.rows[0].order_count)
+        });
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
