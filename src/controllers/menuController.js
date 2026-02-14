@@ -2,11 +2,12 @@ const pool = require('../config/db');
 
 exports.createItem = async (req, res) => {
     try {
-        const { name, price, category } = req.body;
+        const { name, price, category, cost_price, stock } = req.body;
 
         const result = await pool.query(
-            'INSERT INTO menu_items (name, price, category) VALUES ($1, $2, $3) RETURNING *',
-            [name, price, category]
+            `INSERT INTO menu_items (name, price, category, cost_price, stock) 
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [name, price, category, cost_price || 0, stock || 0]
         );
 
         res.status(201).json(result.rows[0]);
@@ -30,11 +31,14 @@ exports.getMenu = async (req, res) => {
 exports.updateItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, price, category } = req.body;
+        const { name, price, category, cost_price, stock } = req.body;
 
         const result = await pool.query(
-            'UPDATE menu_items SET name = $1, price = $2, category = $3 WHERE id = $4 RETURNING *',
-            [name, price, category, id]
+            `UPDATE menu_items 
+             SET name = $1, price = $2, category = $3, 
+                 cost_price = $4, stock = $5
+             WHERE id = $6 RETURNING *`,
+            [name, price, category, cost_price || 0, stock || 0, id]
         );
 
         if (result.rows.length === 0) {
