@@ -75,7 +75,8 @@ exports.createOrder = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
     try {
         const result = await pool.query(`
-      SELECT o.id, o.total_amount, o.payment_method, o.status, o.created_at,
+      SELECT o.id, o.total_amount, o.payment_method, o.status, 
+             o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS created_at,
              u.name as customer_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
