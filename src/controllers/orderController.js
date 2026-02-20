@@ -76,7 +76,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const result = await pool.query(`
       SELECT o.id, o.total_amount, o.payment_method, o.status, 
-             o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS created_at,
+             TO_CHAR(o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD"T"HH24:MI:SS') AS created_at,
              u.name as customer_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
@@ -94,9 +94,11 @@ exports.getMyOrders = async (req, res) => {
         const userId = req.user.id;
 
         const result = await pool.query(
-            `SELECT * FROM orders
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
+            `SELECT id, total_amount, payment_method, status,
+                    TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD"T"HH24:MI:SS') AS created_at
+             FROM orders
+             WHERE user_id = $1
+             ORDER BY created_at DESC`,
             [userId]
         );
 
@@ -130,14 +132,14 @@ exports.getDailyStats = async (req, res) => {
                 COALESCE(SUM(profit), 0) as total_profit,
                 COUNT(*) as order_count
             FROM orders
-            WHERE DATE(created_at) = CURRENT_DATE
+            WHERE DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')
         `);
 
         // Expenses for Today
         const expenseResult = await pool.query(`
             SELECT COALESCE(SUM(amount), 0) as total_expenses
             FROM expenses
-            WHERE DATE(created_at) = CURRENT_DATE
+            WHERE DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')
         `);
 
         const revenue = parseFloat(salesResult.rows[0].total_revenue);
@@ -168,14 +170,14 @@ exports.getMonthlyStats = async (req, res) => {
                 COALESCE(SUM(profit), 0) as total_profit,
                 COUNT(*) as order_count
             FROM orders
-            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            WHERE DATE_TRUNC('month', created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')
         `);
 
         // Expenses for This Month
         const expenseResult = await pool.query(`
             SELECT COALESCE(SUM(amount), 0) as total_expenses
             FROM expenses
-            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            WHERE DATE_TRUNC('month', created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')
         `);
 
         const revenue = parseFloat(salesResult.rows[0].total_revenue);
