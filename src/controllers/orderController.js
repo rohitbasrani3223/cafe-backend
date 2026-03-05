@@ -41,9 +41,13 @@ exports.createOrder = async (req, res) => {
             });
         }
 
+        const nowIST = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
+
         const orderResult = await client.query(
-            'INSERT INTO orders (user_id, total_amount, profit, payment_method) VALUES ($1, $2, $3, $4) RETURNING *',
-            [user_id, totalAmount, totalProfit, payment_method]
+            'INSERT INTO orders (user_id, total_amount, profit, payment_method, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [user_id, totalAmount, totalProfit, payment_method, nowIST]
         );
 
         const order_id = orderResult.rows[0].id;
